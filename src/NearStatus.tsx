@@ -1,13 +1,20 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { NearConnector } from '@hot-labs/near-connect'
-import { RefreshCw, ShieldCheck, ExternalLink, Wallet, LogOut } from 'lucide-react'
+import {
+  RefreshCw,
+  ShieldCheck,
+  ExternalLink,
+  Wallet,
+  LogOut
+} from 'lucide-react'
 
 const ACCOUNT_ID = 'agentvault-xzt520.testnet'
 const RPC_URL = 'https://rpc.testnet.near.org'
 
 const connector = new NearConnector({
-  features: { testnet: true }
+  features: { testnet: true },
+  footerBranding: null
 })
 
 type ChainPolicy = {
@@ -16,6 +23,10 @@ type ChainPolicy = {
   approval_threshold: string
   expires_at_ns: string
   allowed_recipients: string[]
+}
+
+type SignInEvent = {
+  accounts: Array<{ accountId: string }>
 }
 
 async function viewMethod<T>(methodName: string): Promise<T> {
@@ -36,11 +47,16 @@ async function viewMethod<T>(methodName: string): Promise<T> {
     })
   })
 
-  if (!response.ok) throw new Error('NEAR RPC request failed.')
+  if (!response.ok) {
+    throw new Error('NEAR RPC request failed.')
+  }
 
   const payload = await response.json()
+
   if (payload.error) {
-    throw new Error(payload.error.message || 'NEAR RPC returned an error.')
+    throw new Error(
+      payload.error.message || 'NEAR RPC returned an error.'
+    )
   }
 
   const decoded = new TextDecoder().decode(
@@ -51,7 +67,9 @@ async function viewMethod<T>(methodName: string): Promise<T> {
 }
 
 function nearAmount(yocto: string) {
-  return (Number(BigInt(yocto)) / 1e24).toLocaleString('en-US', {
+  return (
+    Number(BigInt(yocto)) / 1e24
+  ).toLocaleString('en-US', {
     maximumFractionDigits: 4
   }) + ' NEAR'
 }
@@ -92,25 +110,56 @@ export default function NearStatus() {
     void refresh()
   }, [refresh])
 
+  // Listen for the official NEAR Connect wallet events.
+  useEffect(() => {
+    let active = true
+
+    connector.on('wallet:signIn', (event: SignInEvent) => {
+      if (active && event.accounts?.length) {
+        setWalletAccount(event.accounts[0].accountId)
+        setWalletError('')
+        setWalletLoading(false)
+      }
+    })
+
+    connector.on('wallet:signOut', () => {
+      if (active) {
+        setWalletAccount('')
+        setWalletLoading(false)
+        setWalletError('')
+      }
+    })
+
+    // Restore an existing connection when possible.
+    void connector.wallet()
+      .then(async wallet => {
+        const accounts = await wallet.getAccounts()
+
+        if (active && accounts.length) {
+          setWalletAccount(accounts[0].accountId)
+        }
+      })
+      .catch(() => {
+        // No existing wallet session is normal.
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
   async function connectWallet() {
     setWalletLoading(true)
     setWalletError('')
 
     try {
       await connector.connect()
-      const wallet = await connector.wallet()
-      const accounts = await wallet.getAccounts()
-
-      if (!accounts.length) {
-        throw new Error('No wallet account was returned.')
-      }
-
-      setWalletAccount(accounts[0].accountId)
     } catch (err) {
       setWalletError(
-        err instanceof Error ? err.message : 'Wallet connection failed.'
+        err instanceof Error
+          ? err.message
+          : 'Wallet connection failed. Please try again.'
       )
-    } finally {
       setWalletLoading(false)
     }
   }
@@ -125,7 +174,9 @@ export default function NearStatus() {
       setWalletAccount('')
     } catch (err) {
       setWalletError(
-        err instanceof Error ? err.message : 'Could not disconnect wallet.'
+        err instanceof Error
+          ? err.message
+          : 'Could not disconnect wallet.'
       )
     } finally {
       setWalletLoading(false)
@@ -143,9 +194,13 @@ export default function NearStatus() {
       <div className="panel-head">
         <div>
           <h2>NEAR testnet connection</h2>
-          <p>Live policy read directly from your deployed contract.</p>
+          <p>
+            Live policy read directly from your deployed contract.
+          </p>
         </div>
-        <span className="live-pill"><i /> ON-CHAIN</span>
+        <span className="live-pill">
+          <i /> ON-CHAIN
+        </span>
       </div>
 
       <div className="chain-account">
@@ -170,7 +225,11 @@ export default function NearStatus() {
         margin: '16px 0'
       }}>
         <div style={{ minWidth: 0 }}>
-          <small style={{ display: 'block', opacity: 0.65, marginBottom: 5 }}>
+          <small style={{
+            display: 'block',
+            opacity: 0.65,
+            marginBottom: 5
+          }}>
             WALLET STATUS
           </small>
           <b style={{ overflowWrap: 'anywhere' }}>
@@ -179,7 +238,11 @@ export default function NearStatus() {
         </div>
 
         <button
-          onClick={() => void (walletAccount ? disconnectWallet() : connectWallet())}
+          onClick={() => void (
+            walletAccount
+              ? disconnectWallet()
+              : connectWallet()
+          )}
           disabled={walletLoading}
           style={{
             display: 'inline-flex',
@@ -195,12 +258,17 @@ export default function NearStatus() {
             cursor: walletLoading ? 'wait' : 'pointer'
           }}
         >
-          {walletAccount ? <LogOut size={15} /> : <Wallet size={15} />}
+          {walletAccount
+            ? <LogOut size={15} />
+            : <Wallet size={15} />
+          }
+
           {walletLoading
             ? 'Please wait…'
             : walletAccount
               ? 'Disconnect'
-              : 'Connect NEAR Wallet'}
+              : 'Connect NEAR Wallet'
+          }
         </button>
       </div>
 
@@ -217,7 +285,9 @@ export default function NearStatus() {
       {!loading && error && (
         <div className="chain-error">
           <span>{error}</span>
-          <button onClick={() => void refresh()}>Retry</button>
+          <button onClick={() => void refresh()}>
+            Retry
+          </button>
         </div>
       )}
 
@@ -244,14 +314,17 @@ export default function NearStatus() {
 
           <div className="chain-footer">
             <span>Policy expires: {expiry}</span>
-            <button onClick={() => void refresh()} disabled={loading}>
+            <button
+              onClick={() => void refresh()}
+              disabled={loading}
+            >
               <RefreshCw size={13} /> Refresh
             </button>
           </div>
 
           <div className="chain-recipients">
             <small>ON-CHAIN ALLOWED RECIPIENTS</small>
-            {policy.allowed_recipients.map((recipient) => (
+            {policy.allowed_recipients.map(recipient => (
               <span key={recipient}>{recipient}</span>
             ))}
           </div>
