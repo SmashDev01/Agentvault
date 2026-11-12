@@ -28,3 +28,10 @@ jobs:
 
       - name: Build release WebAssembly
         run: cargo build --manifest-path contract/Cargo.toml --target wasm32-unknown-unknown --release
+
+      - name: Upload contract WASM
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentvault-wasm
+          path: contract/target/wasm32-unknown-unknown/release/agentvault.wasm
+          if-no-files-found: error
