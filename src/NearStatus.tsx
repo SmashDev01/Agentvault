@@ -12,7 +12,6 @@ import {
 
 const ACCOUNT_ID = 'agentvault-xzt520.testnet'
 const RPC_URL = 'https://rpc.testnet.near.org'
-
 const REOWN_PROJECT_ID = '9d0ddacb457a7cef532b476119d80f6f'
 
 const walletConnect = SignClient.init({
@@ -120,6 +119,40 @@ export default function NearStatus() {
     }
   }, [])
 
+  const syncWallet = useCallback(async (
+    attempts = 1,
+    finishLoading = false
+  ) => {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const wallet = await connector.wallet()
+        const accounts = await wallet.getAccounts()
+
+        if (accounts?.length && accounts[0]?.accountId) {
+          setWalletAccount(accounts[0].accountId)
+          setWalletError('')
+          setWalletLoading(false)
+          return true
+        }
+      } catch {
+        // Wallet may still be restoring its mobile session.
+      }
+
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, 700))
+      }
+    }
+
+    if (finishLoading) {
+      setWalletLoading(false)
+      setWalletError(
+        'Wallet approval was not detected. Please try connecting again.'
+      )
+    }
+
+    return false
+  }, [])
+
   useEffect(() => {
     void refresh()
   }, [refresh])
@@ -127,38 +160,51 @@ export default function NearStatus() {
   useEffect(() => {
     let active = true
 
-    connector.on('wallet:signIn', (event: SignInEvent) => {
+    const handleSignIn = (event: SignInEvent) => {
       if (active && event.accounts?.length) {
         setWalletAccount(event.accounts[0].accountId)
         setWalletError('')
         setWalletLoading(false)
       }
-    })
+    }
 
-    connector.on('wallet:signOut', () => {
+    const handleSignOut = () => {
       if (active) {
         setWalletAccount('')
         setWalletLoading(false)
         setWalletError('')
       }
-    })
+    }
 
-    void connector.wallet()
-      .then(async wallet => {
-        const accounts = await wallet.getAccounts()
+    const handleReturnToBrowser = () => {
+      if (
+        active &&
+        document.visibilityState === 'visible'
+      ) {
+        void syncWallet(5, true)
+      }
+    }
 
-        if (active && accounts.length) {
-          setWalletAccount(accounts[0].accountId)
-        }
-      })
-      .catch(() => {
-        // No existing wallet session is normal.
-      })
+    connector.on('wallet:signIn', handleSignIn)
+    connector.on('wallet:signOut', handleSignOut)
+
+    void syncWallet(2, false)
+
+    window.addEventListener('focus', handleReturnToBrowser)
+    document.addEventListener(
+      'visibilitychange',
+      handleReturnToBrowser
+    )
 
     return () => {
       active = false
+      window.removeEventListener('focus', handleReturnToBrowser)
+      document.removeEventListener(
+        'visibilitychange',
+        handleReturnToBrowser
+      )
     }
-  }, [])
+  }, [syncWallet])
 
   async function connectWallet() {
     setWalletLoading(true)
@@ -166,6 +212,15 @@ export default function NearStatus() {
 
     try {
       await connector.connect()
+
+      const connected = await syncWallet(8, false)
+
+      if (!connected) {
+        setWalletLoading(false)
+        setWalletError(
+          'Connection was not confirmed. Please try again or select another NEAR wallet.'
+        )
+      }
     } catch (err) {
       setWalletError(
         err instanceof Error
@@ -244,9 +299,11 @@ export default function NearStatus() {
           }}>
             WALLET STATUS
           </small>
+
           <b style={{ overflowWrap: 'anywhere' }}>
             {walletAccount || 'No wallet connected'}
           </b>
+
           {!walletAccount && (
             <small style={{
               display: 'block',
@@ -285,7 +342,7 @@ export default function NearStatus() {
           }
 
           {walletLoading
-            ? 'Please wait…'
+            ? 'Checking wallet…'
             : walletAccount
               ? 'Disconnect'
               : 'Choose NEAR Wallet'
@@ -319,14 +376,17 @@ export default function NearStatus() {
               <small>PER-TRANSACTION LIMIT</small>
               <b>{nearAmount(policy.per_transaction_limit)}</b>
             </div>
+
             <div>
               <small>DAILY BUDGET</small>
               <b>{nearAmount(policy.daily_budget)}</b>
             </div>
+
             <div>
               <small>HUMAN APPROVAL ABOVE</small>
               <b>{nearAmount(policy.approval_threshold)}</b>
             </div>
+
             <div>
               <small>SPENT TODAY</small>
               <b>{nearAmount(dailySpend ?? '0')}</b>
