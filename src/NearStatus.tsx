@@ -1,8 +1,14 @@
+
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, ShieldCheck, ExternalLink } from 'lucide-react'
+import { NearConnector } from '@hot-labs/near-connect'
+import { RefreshCw, ShieldCheck, ExternalLink, Wallet, LogOut } from 'lucide-react'
 
 const ACCOUNT_ID = 'agentvault-xzt520.testnet'
 const RPC_URL = 'https://rpc.testnet.near.org'
+
+const connector = new NearConnector({
+  features: { testnet: true }
+})
 
 type ChainPolicy = {
   per_transaction_limit: string
@@ -33,7 +39,6 @@ async function viewMethod<T>(methodName: string): Promise<T> {
   if (!response.ok) throw new Error('NEAR RPC request failed.')
 
   const payload = await response.json()
-
   if (payload.error) {
     throw new Error(payload.error.message || 'NEAR RPC returned an error.')
   }
@@ -56,6 +61,9 @@ export default function NearStatus() {
   const [dailySpend, setDailySpend] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [walletAccount, setWalletAccount] = useState('')
+  const [walletLoading, setWalletLoading] = useState(false)
+  const [walletError, setWalletError] = useState('')
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -83,6 +91,46 @@ export default function NearStatus() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  async function connectWallet() {
+    setWalletLoading(true)
+    setWalletError('')
+
+    try {
+      await connector.connect()
+      const wallet = await connector.wallet()
+      const accounts = await wallet.getAccounts()
+
+      if (!accounts.length) {
+        throw new Error('No wallet account was returned.')
+      }
+
+      setWalletAccount(accounts[0].accountId)
+    } catch (err) {
+      setWalletError(
+        err instanceof Error ? err.message : 'Wallet connection failed.'
+      )
+    } finally {
+      setWalletLoading(false)
+    }
+  }
+
+  async function disconnectWallet() {
+    setWalletLoading(true)
+    setWalletError('')
+
+    try {
+      const wallet = await connector.wallet()
+      await wallet.signOut()
+      setWalletAccount('')
+    } catch (err) {
+      setWalletError(
+        err instanceof Error ? err.message : 'Could not disconnect wallet.'
+      )
+    } finally {
+      setWalletLoading(false)
+    }
+  }
 
   const expiry = policy
     ? new Date(
@@ -112,6 +160,53 @@ export default function NearStatus() {
           <ExternalLink size={14} />
         </a>
       </div>
+
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '12px',
+        margin: '16px 0'
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <small style={{ display: 'block', opacity: 0.65, marginBottom: 5 }}>
+            WALLET STATUS
+          </small>
+          <b style={{ overflowWrap: 'anywhere' }}>
+            {walletAccount || 'No wallet connected'}
+          </b>
+        </div>
+
+        <button
+          onClick={() => void (walletAccount ? disconnectWallet() : connectWallet())}
+          disabled={walletLoading}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '10px 14px',
+            borderRadius: 10,
+            border: '1px solid rgba(140,120,255,.35)',
+            background: 'rgba(120,95,255,.14)',
+            color: 'inherit',
+            fontWeight: 700,
+            cursor: walletLoading ? 'wait' : 'pointer'
+          }}
+        >
+          {walletAccount ? <LogOut size={15} /> : <Wallet size={15} />}
+          {walletLoading
+            ? 'Please wait…'
+            : walletAccount
+              ? 'Disconnect'
+              : 'Connect NEAR Wallet'}
+        </button>
+      </div>
+
+      {walletError && (
+        <p className="chain-error">{walletError}</p>
+      )}
 
       {loading && (
         <p className="chain-message">
@@ -162,10 +257,10 @@ export default function NearStatus() {
           </div>
 
           <p className="chain-disclaimer">
-            Read-only testnet connection. No funds are transferred by this dashboard.
+            Read-only policy display. Wallet connection does not transfer funds.
           </p>
         </>
       )}
     </section>
   )
-                                     }
+}
