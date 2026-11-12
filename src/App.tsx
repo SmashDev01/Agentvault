@@ -1,7 +1,11 @@
 
 import { useMemo, useState } from 'react'
-import { ShieldCheck, Wallet, Activity, Settings2, Plus, ArrowUpRight, LockKeyhole, Check, X, AlertTriangle, Bot, ChevronRight, Menu } from 'lucide-react'
+import {
+  ShieldCheck, Wallet, Activity, Settings2, Plus, ArrowUpRight,
+  LockKeyhole, Check, X, AlertTriangle, Bot, ChevronRight, Menu
+} from 'lucide-react'
 import { evaluatePayment, type Policy, type PaymentRequest } from './policy'
+import NearStatus from './NearStatus'
 
 const initialPolicy: Policy = {
   perTransactionLimit: 250,
@@ -18,7 +22,10 @@ const seed: PaymentRequest[] = [
   { id: 'AV-1046', recipient: 'Render Cloud', amount: 125, purpose: 'Monthly hosting', createdAt: '1 hr ago', status: 'pending' },
 ]
 
-const money = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const money = (n: number) => '$' + n.toLocaleString('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
 
 export default function App() {
   const [policy, setPolicy] = useState(initialPolicy)
@@ -67,7 +74,9 @@ export default function App() {
     setRequests(prev => [request, ...prev])
 
     setNotice(decision.allowed
-      ? (decision.needsApproval ? 'Request created — human approval required.' : 'Request created and passed policy checks.')
+      ? (decision.needsApproval
+        ? 'Request created — human approval required.'
+        : 'Request created and passed policy checks.')
       : 'Request created but blocked by policy: ' + decision.reasons.join('; '))
   }
 
@@ -82,10 +91,15 @@ export default function App() {
       return
     }
 
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r))
+    setRequests(prev => prev.map(r =>
+      r.id === id ? { ...r, status } : r
+    ))
 
     if (status === 'approved') {
-      setPolicy(p => ({ ...p, spentToday: p.spentToday + target.amount }))
+      setPolicy(p => ({
+        ...p,
+        spentToday: p.spentToday + target.amount
+      }))
     }
 
     setNotice(status === 'approved'
@@ -103,21 +117,39 @@ export default function App() {
 
         <div className="workspace">
           <div className="workspace-icon">AV</div>
-          <div><b>Personal workspace</b><small>Free sandbox</small></div>
+          <div>
+            <b>Personal workspace</b>
+            <small>Free sandbox</small>
+          </div>
           <ChevronRight size={15} />
         </div>
 
         <div className="nav-label">WORKSPACE</div>
-        <a className="nav-item active" onClick={() => navigateTo('overview')}><Activity size={17} /> Overview</a>
-        <a className="nav-item" onClick={() => navigateTo('payment-requests')}><Wallet size={17} /> Payment requests <span className="nav-count">{pending.length}</span></a>
-        <a className="nav-item" onClick={() => navigateTo('policies')}><ShieldCheck size={17} /> Policies</a>
-        <a className="nav-item" onClick={() => navigateTo('agents')}><Bot size={17} /> Agents</a>
+        <a className="nav-item active" onClick={() => navigateTo('overview')}>
+          <Activity size={17} /> Overview
+        </a>
+        <a className="nav-item" onClick={() => navigateTo('payment-requests')}>
+          <Wallet size={17} /> Payment requests
+          <span className="nav-count">{pending.length}</span>
+        </a>
+        <a className="nav-item" onClick={() => navigateTo('policies')}>
+          <ShieldCheck size={17} /> Policies
+        </a>
+        <a className="nav-item" onClick={() => navigateTo('agents')}>
+          <Bot size={17} /> Agents
+        </a>
 
         <div className="nav-label lower">PREFERENCES</div>
-        <a className="nav-item" onClick={() => navigateTo('settings')}><Settings2 size={17} /> Settings</a>
+        <a className="nav-item" onClick={() => navigateTo('settings')}>
+          <Settings2 size={17} /> Settings
+        </a>
 
         <div className="sidebar-bottom">
-          <div className="secure"><LockKeyhole size={15} /><span>Policy engine active</span><i /></div>
+          <div className="secure">
+            <LockKeyhole size={15} />
+            <span>Policy engine active</span>
+            <i />
+          </div>
           <small>AGENTVAULT SANDBOX · v0.1</small>
         </div>
       </aside>
@@ -142,12 +174,23 @@ export default function App() {
           {menuOpen && (
             <div className="mobile-menu">
               <div className="mobile-menu-heading">WORKSPACE</div>
-              <button onClick={() => navigateTo('overview')}><Activity size={18} /> Overview</button>
-              <button onClick={() => navigateTo('payment-requests')}><Wallet size={18} /> Payment requests <span>{pending.length}</span></button>
-              <button onClick={() => navigateTo('policies')}><ShieldCheck size={18} /> Policies</button>
-              <button onClick={() => navigateTo('agents')}><Bot size={18} /> Agents</button>
+              <button onClick={() => navigateTo('overview')}>
+                <Activity size={18} /> Overview
+              </button>
+              <button onClick={() => navigateTo('payment-requests')}>
+                <Wallet size={18} /> Payment requests
+                <span>{pending.length}</span>
+              </button>
+              <button onClick={() => navigateTo('policies')}>
+                <ShieldCheck size={18} /> Policies
+              </button>
+              <button onClick={() => navigateTo('agents')}>
+                <Bot size={18} /> Agents
+              </button>
               <div className="mobile-menu-heading">PREFERENCES</div>
-              <button onClick={() => navigateTo('settings')}><Settings2 size={18} /> Settings</button>
+              <button onClick={() => navigateTo('settings')}>
+                <Settings2 size={18} /> Settings
+              </button>
             </div>
           )}
         </header>
@@ -158,45 +201,77 @@ export default function App() {
             <h1>Good to see you.</h1>
             <p>Monitor agent spending and keep every payment within policy.</p>
           </div>
-          <button className="primary" onClick={() => document.getElementById('request-form')?.scrollIntoView({ behavior: 'smooth' })}>
+          <button
+            className="primary"
+            onClick={() => document.getElementById('request-form')?.scrollIntoView({ behavior: 'smooth' })}
+          >
             <Plus size={17} /> New payment request
           </button>
         </section>
 
-        {notice && <div className="notice" onClick={() => setNotice('')}>{notice}<X size={15} /></div>}
+        {/* Live NEAR blockchain connection */}
+        <NearStatus />
+
+        {notice && (
+          <div className="notice" onClick={() => setNotice('')}>
+            {notice}<X size={15} />
+          </div>
+        )}
 
         <section className="stats">
           <div className="stat-card">
-            <div className="stat-top"><span>DAILY SPEND</span><span className="stat-icon purple"><Wallet size={17} /></span></div>
+            <div className="stat-top">
+              <span>DAILY SPEND</span>
+              <span className="stat-icon purple"><Wallet size={17} /></span>
+            </div>
             <strong>{money(policy.spentToday)}</strong>
             <small>of {money(policy.dailyBudget)} daily budget</small>
-            <div className="progress"><i style={{ width: spentPercent + '%' }} /></div>
-            <div className="stat-foot">{Math.round(spentPercent)}% used <b>{usage} remaining</b></div>
+            <div className="progress">
+              <i style={{ width: spentPercent + '%' }} />
+            </div>
+            <div className="stat-foot">
+              {Math.round(spentPercent)}% used <b>{usage} remaining</b>
+            </div>
           </div>
 
           <div className="stat-card">
-            <div className="stat-top"><span>PENDING APPROVALS</span><span className="stat-icon amber"><AlertTriangle size={17} /></span></div>
+            <div className="stat-top">
+              <span>PENDING APPROVALS</span>
+              <span className="stat-icon amber"><AlertTriangle size={17} /></span>
+            </div>
             <strong>{pending.length.toString().padStart(2, '0')}</strong>
             <small>Requests awaiting your review</small>
-            <div className="stat-link" onClick={() => navigateTo('payment-requests')}>Review queue <ArrowUpRight size={14} /></div>
+            <div className="stat-link" onClick={() => navigateTo('payment-requests')}>
+              Review queue <ArrowUpRight size={14} />
+            </div>
           </div>
 
           <div className="stat-card">
-            <div className="stat-top"><span>POLICY STATUS</span><span className="stat-icon green"><ShieldCheck size={17} /></span></div>
+            <div className="stat-top">
+              <span>POLICY STATUS</span>
+              <span className="stat-icon green"><ShieldCheck size={17} /></span>
+            </div>
             <strong className="status-good">Protected</strong>
             <small>All spending rules enforced</small>
-            <div className="stat-link" onClick={() => navigateTo('policies')}>View active policy <ArrowUpRight size={14} /></div>
+            <div className="stat-link" onClick={() => navigateTo('policies')}>
+              View active policy <ArrowUpRight size={14} />
+            </div>
           </div>
         </section>
 
         <section className="content-grid">
           <div className="panel requests-panel" id="payment-requests">
             <div className="panel-head">
-              <div><h2>Payment requests</h2><p>Review activity initiated by your agents.</p></div>
+              <div>
+                <h2>Payment requests</h2>
+                <p>Review activity initiated by your agents.</p>
+              </div>
               <span className="live-pill"><i /> LIVE DEMO</span>
             </div>
 
-            {requests.length === 0 ? <div className="empty">No payment requests yet.</div> : (
+            {requests.length === 0 ? (
+              <div className="empty">No payment requests yet.</div>
+            ) : (
               <div className="request-list">
                 {requests.map(r => {
                   const d = evaluatePayment(policy, r)
@@ -211,18 +286,30 @@ export default function App() {
                       </div>
                       <div className="request-right">
                         <b>{money(r.amount)}</b>
-                        <span className={'pill ' + (r.status === 'pending' ? 'pending' : r.status)}>{r.status}</span>
+                        <span className={'pill ' + (r.status === 'pending' ? 'pending' : r.status)}>
+                          {r.status}
+                        </span>
                       </div>
 
                       {r.status === 'pending' && (
                         <div className="request-actions">
-                          <button title="Approve" onClick={() => decide(r.id, 'approved')}><Check size={15} /></button>
-                          <button title="Reject" onClick={() => decide(r.id, 'rejected')}><X size={15} /></button>
+                          <button title="Approve" onClick={() => decide(r.id, 'approved')}>
+                            <Check size={15} />
+                          </button>
+                          <button title="Reject" onClick={() => decide(r.id, 'rejected')}>
+                            <X size={15} />
+                          </button>
                         </div>
                       )}
 
-                      {r.status === 'pending' && !d.allowed && <div className="policy-warning">{d.reasons[0]}</div>}
-                      {r.status === 'pending' && d.needsApproval && d.allowed && <div className="policy-warning approval">Within policy · human approval required</div>}
+                      {r.status === 'pending' && !d.allowed && (
+                        <div className="policy-warning">{d.reasons[0]}</div>
+                      )}
+                      {r.status === 'pending' && d.needsApproval && d.allowed && (
+                        <div className="policy-warning approval">
+                          Within policy · human approval required
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -232,20 +319,43 @@ export default function App() {
 
           <div className="panel policy-panel" id="policies">
             <div className="panel-head">
-              <div><h2>Active policy</h2><p>Your agent's spending boundaries.</p></div>
+              <div>
+                <h2>Active policy</h2>
+                <p>Your agent's spending boundaries.</p>
+              </div>
               <span className="shield-mini"><ShieldCheck size={18} /></span>
             </div>
 
-            <div className="policy-item"><span>Per-transaction limit</span><b>{money(policy.perTransactionLimit)}</b></div>
-            <div className="policy-item"><span>Daily spending budget</span><b>{money(policy.dailyBudget)}</b></div>
-            <div className="policy-item"><span>Human approval above</span><b>{money(policy.approvalThreshold)}</b></div>
-            <div className="policy-item"><span>Approved recipients</span><b>{policy.allowedRecipients.length} services</b></div>
-
-            <div className="allowlist">
-              {policy.allowedRecipients.map(x => <span key={x}><Check size={12} />{x}</span>)}
+            <div className="policy-item">
+              <span>Per-transaction limit</span>
+              <b>{money(policy.perTransactionLimit)}</b>
+            </div>
+            <div className="policy-item">
+              <span>Daily spending budget</span>
+              <b>{money(policy.dailyBudget)}</b>
+            </div>
+            <div className="policy-item">
+              <span>Human approval above</span>
+              <b>{money(policy.approvalThreshold)}</b>
+            </div>
+            <div className="policy-item">
+              <span>Approved recipients</span>
+              <b>{policy.allowedRecipients.length} services</b>
             </div>
 
-            <button className="secondary full" onClick={() => setPolicy(p => ({ ...p, approvalThreshold: p.approvalThreshold === 100 ? 150 : 100 }))}>
+            <div className="allowlist">
+              {policy.allowedRecipients.map(x => (
+                <span key={x}><Check size={12} />{x}</span>
+              ))}
+            </div>
+
+            <button
+              className="secondary full"
+              onClick={() => setPolicy(p => ({
+                ...p,
+                approvalThreshold: p.approvalThreshold === 100 ? 150 : 100
+              }))}
+            >
               Adjust approval threshold <ArrowUpRight size={14} />
             </button>
           </div>
@@ -253,12 +363,16 @@ export default function App() {
 
         <section className="panel create-panel" id="request-form">
           <div className="panel-head">
-            <div><h2>Simulate an agent payment</h2><p>Submit a request and let the independent policy engine evaluate it.</p></div>
+            <div>
+              <h2>Simulate an agent payment</h2>
+              <p>Submit a request and let the independent policy engine evaluate it.</p>
+            </div>
             <span className="demo-tag">SANDBOX</span>
           </div>
 
           <div className="form-grid">
-            <label>Recipient
+            <label>
+              Recipient
               <select value={recipient} onChange={e => setRecipient(e.target.value)}>
                 <option>OpenAI API</option>
                 <option>Render Cloud</option>
@@ -267,15 +381,24 @@ export default function App() {
               </select>
             </label>
 
-            <label>Amount (USD)
-              <input type="number" min="1" value={amount} onChange={e => setAmount(e.target.value)} />
+            <label>
+              Amount (USD)
+              <input
+                type="number"
+                min="1"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+              />
             </label>
 
-            <label className="purpose-field">Payment purpose
+            <label className="purpose-field">
+              Payment purpose
               <input value={purpose} onChange={e => setPurpose(e.target.value)} />
             </label>
 
-            <button className="primary submit" onClick={createRequest}><Plus size={16} /> Evaluate request</button>
+            <button className="primary submit" onClick={createRequest}>
+              <Plus size={16} /> Evaluate request
+            </button>
           </div>
         </section>
 
