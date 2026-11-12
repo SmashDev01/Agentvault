@@ -1,5 +1,5 @@
 
-use near_sdk::{env, near, AccountId, PanicOnDefault};
+use near_sdk::{env, json_types::{U128, U64}, near, AccountId, PanicOnDefault};
 
 const DAY_NS: u64 = 86_400_000_000_000;
 const MAX_REQUEST_HISTORY: usize = 100;
