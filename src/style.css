@@ -422,3 +422,200 @@
     grid-template-columns: 1fr;
   }
 }
+/* Premium on-chain payment requests card */
+.chain-requests-panel {
+  margin: 18px 0 22px;
+  padding: 24px;
+  background: linear-gradient(145deg, #151e32, #101827);
+  border: 1px solid #354363;
+  border-radius: 16px;
+  box-shadow: 0 12px 35px #0003;
+}
+
+.chain-requests-panel .panel-head {
+  align-items: center;
+  gap: 15px;
+  padding-bottom: 18px;
+  margin-bottom: 0;
+  border-bottom: 1px solid #293650;
+}
+
+.chain-requests-panel .panel-head h2 {
+  color: #f0f3ff;
+  font-size: 17px;
+  margin-bottom: 7px;
+}
+
+.chain-requests-panel .panel-head p {
+  color: #929fb8;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.chain-requests-panel .live-pill {
+  flex-shrink: 0;
+}
+
+.chain-empty {
+  min-height: 190px;
+  margin-top: 17px;
+  padding: 28px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 11px;
+  background: linear-gradient(145deg, #111b2e, #0d1626);
+  border: 1px dashed #354363;
+  border-radius: 12px;
+}
+
+.chain-empty svg {
+  color: #a99fff;
+  padding: 10px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #29264d;
+}
+
+.chain-empty b {
+  color: #e8edfa;
+  font: 600 14px 'Space Grotesk';
+}
+
+.chain-empty span {
+  max-width: 320px;
+  color: #8998b1;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.chain-request-list {
+  margin-top: 8px;
+}
+
+.chain-request-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 17px 5px;
+  border-bottom: 1px solid #293650;
+}
+
+.chain-request-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.chain-request-info b {
+  color: #edf1fa;
+  font-size: 12px;
+}
+
+.chain-request-info span,
+.chain-request-info small {
+  color: #8998b1;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.chain-request-right {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.chain-request-right b {
+  display: block;
+  color: #e6e2ff;
+  font: 600 13px 'Space Grotesk';
+}
+
+.chain-requests-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 17px;
+  padding-top: 15px;
+  border-top: 1px solid #293650;
+}
+
+.chain-requests-footer > span {
+  color: #8998b1;
+  font-size: 10px;
+}
+
+.chain-requests-footer button,
+.chain-requests-footer a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border: 1px solid #494477;
+  border-radius: 8px;
+  background: #242344;
+  color: #c4bbff;
+  font-size: 10px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.chain-requests-footer button:disabled {
+  opacity: .5;
+  cursor: wait;
+}
+
+.chain-requests-panel .chain-message {
+  padding: 24px 5px;
+  text-align: center;
+}
+
+.chain-requests-panel .chain-error {
+  margin-top: 16px;
+}
+
+@media (max-width: 620px) {
+  .chain-requests-panel {
+    padding: 16px;
+    margin: 14px 0;
+  }
+
+  .chain-requests-panel .panel-head {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .chain-requests-panel .panel-head h2 {
+    font-size: 15px;
+  }
+
+  .chain-requests-panel .live-pill {
+    font-size: 7px;
+    padding: 6px 7px;
+  }
+
+  .chain-empty {
+    min-height: 175px;
+    padding: 22px 12px;
+  }
+
+  .chain-request-row {
+    gap: 9px;
+    padding: 14px 0;
+  }
+
+  .chain-request-info span {
+    max-width: 190px;
+  }
+
+  .chain-requests-footer {
+    justify-content: flex-start;
+  }
+}
