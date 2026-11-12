@@ -1,6 +1,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { NearConnector } from '@hot-labs/near-connect'
+import SignClient from '@walletconnect/sign-client'
 import {
   RefreshCw,
   ShieldCheck,
@@ -12,9 +13,22 @@ import {
 const ACCOUNT_ID = 'agentvault-xzt520.testnet'
 const RPC_URL = 'https://rpc.testnet.near.org'
 
+const REOWN_PROJECT_ID = '9d0ddacb457a7cef532b476119d80f6f'
+
+const walletConnect = SignClient.init({
+  projectId: REOWN_PROJECT_ID,
+  metadata: {
+    name: 'AgentVault',
+    description: 'Secure spending policies for AI agents on NEAR',
+    url: 'https://agentvault-lac.vercel.app',
+    icons: ['https://agentvault-lac.vercel.app/favicon.ico']
+  }
+})
+
 const connector = new NearConnector({
   features: { testnet: true },
-  footerBranding: null
+  footerBranding: null,
+  walletConnect
 })
 
 type ChainPolicy = {
@@ -110,7 +124,6 @@ export default function NearStatus() {
     void refresh()
   }, [refresh])
 
-  // Listen for the official NEAR Connect wallet events.
   useEffect(() => {
     let active = true
 
@@ -130,7 +143,6 @@ export default function NearStatus() {
       }
     })
 
-    // Restore an existing connection when possible.
     void connector.wallet()
       .then(async wallet => {
         const accounts = await wallet.getAccounts()
@@ -235,6 +247,15 @@ export default function NearStatus() {
           <b style={{ overflowWrap: 'anywhere' }}>
             {walletAccount || 'No wallet connected'}
           </b>
+          {!walletAccount && (
+            <small style={{
+              display: 'block',
+              opacity: 0.65,
+              marginTop: 5
+            }}>
+              NEAR wallets and supported WalletConnect wallets
+            </small>
+          )}
         </div>
 
         <button
@@ -267,7 +288,7 @@ export default function NearStatus() {
             ? 'Please wait…'
             : walletAccount
               ? 'Disconnect'
-              : 'Connect NEAR Wallet'
+              : 'Choose NEAR Wallet'
           }
         </button>
       </div>
