@@ -15,7 +15,7 @@ pub struct Policy {
 }
 
 #[near(serializers = [borsh, json])]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum RequestStatus {
     Approved,
     PendingApproval,
