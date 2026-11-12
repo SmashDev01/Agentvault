@@ -25,3 +25,6 @@ jobs:
 
       - name: Check NEAR contract
         run: cargo check --manifest-path contract/Cargo.toml --target wasm32-unknown-unknown
+
+      - name: Build release WebAssembly
+        run: cargo build --manifest-path contract/Cargo.toml --target wasm32-unknown-unknown --release
