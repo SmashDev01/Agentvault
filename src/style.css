@@ -111,3 +111,92 @@
   .nav-item { font-size: 9px; padding: 0 5px; }
   .stat-card { padding: 10px; }
 }
+/* AgentVault hamburger navigation */
+.mobile-menu-button {
+  display: none;
+  background: #1b2340;
+  color: #dcd8ff;
+  border: 1px solid #39365f;
+  border-radius: 8px;
+  width: 40px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mobile-menu {
+  display: none;
+}
+
+@media (min-width: 621px) {
+  .mobile-menu-button,
+  .mobile-menu {
+    display: none !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .sidebar {
+    display: none !important;
+  }
+
+  .topbar {
+    position: relative;
+    z-index: 10;
+  }
+
+  .top-right {
+    gap: 12px;
+  }
+
+  .mobile-menu-button {
+    display: flex;
+  }
+
+  .mobile-menu {
+    display: flex;
+    position: absolute;
+    top: 46px;
+    right: 0;
+    width: min(280px, 90vw);
+    flex-direction: column;
+    padding: 10px;
+    background: #121a2c;
+    border: 1px solid #303b55;
+    border-radius: 12px;
+    box-shadow: 0 15px 40px #0009;
+    z-index: 20;
+  }
+
+  .mobile-menu-heading {
+    color: #7886a0;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.3px;
+    padding: 10px 9px 7px;
+  }
+
+  .mobile-menu button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 10px;
+    color: #dce3f0;
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    text-align: left;
+    font-size: 12px;
+  }
+
+  .mobile-menu button:active {
+    background: #29264d;
+  }
+
+  .mobile-menu button span {
+    margin-left: auto;
+    color: #b9b2ff;
+  }
+}
