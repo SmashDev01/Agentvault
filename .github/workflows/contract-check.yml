@@ -1,0 +1,25 @@
+
+name: Contract checks
+
+on:
+  push:
+    paths:
+      - 'contract/**'
+      - '.github/workflows/contract-check.yml'
+  pull_request:
+    paths:
+      - 'contract/**'
+      - '.github/workflows/contract-check.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check contract
+        run: cargo check --manifest-path contract/Cargo.toml
