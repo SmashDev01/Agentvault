@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { evaluatePayment, type Policy, type PaymentRequest } from './policy'
 import NearStatus from './NearStatus'
+import OnChainRequests from './OnChainRequests'
 
 const initialPolicy: Policy = {
   perTransactionLimit: 250,
@@ -209,8 +210,9 @@ export default function App() {
           </button>
         </section>
 
-        {/* Live NEAR blockchain connection */}
         <NearStatus />
+
+        <OnChainRequests />
 
         {notice && (
           <div className="notice" onClick={() => setNotice('')}>
