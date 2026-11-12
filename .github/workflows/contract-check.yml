@@ -20,6 +20,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
-      - name: Check contract
-        run: cargo check --manifest-path contract/Cargo.toml
+      - name: Check NEAR contract
+        run: cargo check --manifest-path contract/Cargo.toml --target wasm32-unknown-unknown
