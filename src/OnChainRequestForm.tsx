@@ -72,6 +72,9 @@ export default function OnChainRequestForm() {
       }
 
       const yoctoAmount = toYocto(amount)
+      console.log('Entered amount:', amount)
+      console.log('Converted amount:', yoctoAmount)
+      console.log('Transaction limit:', policy.per_transaction_limit)
 
       if (BigInt(yoctoAmount) <= 0n) {
         throw new Error('Amount must be greater than zero.')
