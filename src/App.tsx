@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ShieldCheck, Wallet, Activity, Settings2, Plus, ArrowUpRight,
   LockKeyhole, Check, X, AlertTriangle, Bot, ChevronRight, Menu
@@ -28,6 +28,21 @@ const money = (n: number) => '$' + n.toLocaleString('en-US', {
   maximumFractionDigits: 2
 })
 
+function nearEquivalent(usd: number, price: number | null) {
+  if (price === null) return 'NEAR rate unavailable'
+
+  return (usd / price).toLocaleString('en-US', {
+    maximumFractionDigits: 4
+  }) + ' NEAR'
+}
+
+const secondaryStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 11,
+  opacity: 0.65,
+  marginTop: 4
+}
+
 export default function App() {
   const [policy, setPolicy] = useState(initialPolicy)
   const [requests, setRequests] = useState(seed)
@@ -36,6 +51,38 @@ export default function App() {
   const [purpose, setPurpose] = useState('Agent service payment')
   const [notice, setNotice] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [nearUsd, setNearUsd] = useState<number | null>(null)
+
+  useEffect(() => {
+    let active = true
+
+    const loadPrice = async () => {
+      try {
+        const response = await fetch(
+          'https://api.coingecko.com/api/v3/simple/price?ids=near&vs_currencies=usd'
+        )
+
+        if (!response.ok) throw new Error('Price unavailable')
+
+        const data = await response.json()
+        const price = Number(data?.near?.usd)
+
+        if (active && Number.isFinite(price) && price > 0) {
+          setNearUsd(price)
+        }
+      } catch {
+        // Keep the last valid price.
+      }
+    }
+
+    void loadPrice()
+    const timer = window.setInterval(loadPrice, 60000)
+
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [])
 
   const spentPercent = Math.min(100, policy.spentToday / policy.dailyBudget * 100)
   const pending = requests.filter(r => r.status === 'pending')
@@ -227,13 +274,18 @@ export default function App() {
               <span className="stat-icon purple"><Wallet size={17} /></span>
             </div>
             <strong>{money(policy.spentToday)}</strong>
+            <small>{nearEquivalent(policy.spentToday, nearUsd)}</small>
             <small>of {money(policy.dailyBudget)} daily budget</small>
+            <small>{nearEquivalent(policy.dailyBudget, nearUsd)} budget</small>
             <div className="progress">
               <i style={{ width: spentPercent + '%' }} />
             </div>
             <div className="stat-foot">
               {Math.round(spentPercent)}% used <b>{usage} remaining</b>
             </div>
+            <small style={secondaryStyle}>
+              {nearEquivalent(policy.dailyBudget - policy.spentToday, nearUsd)} remaining
+            </small>
           </div>
 
           <div className="stat-card">
@@ -288,6 +340,9 @@ export default function App() {
                       </div>
                       <div className="request-right">
                         <b>{money(r.amount)}</b>
+                        <small style={secondaryStyle}>
+                          {nearEquivalent(r.amount, nearUsd)}
+                        </small>
                         <span className={'pill ' + (r.status === 'pending' ? 'pending' : r.status)}>
                           {r.status}
                         </span>
@@ -330,15 +385,30 @@ export default function App() {
 
             <div className="policy-item">
               <span>Per-transaction limit</span>
-              <b>{money(policy.perTransactionLimit)}</b>
+              <div>
+                <b>{money(policy.perTransactionLimit)}</b>
+                <small style={secondaryStyle}>
+                  {nearEquivalent(policy.perTransactionLimit, nearUsd)}
+                </small>
+              </div>
             </div>
             <div className="policy-item">
               <span>Daily spending budget</span>
-              <b>{money(policy.dailyBudget)}</b>
+              <div>
+                <b>{money(policy.dailyBudget)}</b>
+                <small style={secondaryStyle}>
+                  {nearEquivalent(policy.dailyBudget, nearUsd)}
+                </small>
+              </div>
             </div>
             <div className="policy-item">
               <span>Human approval above</span>
-              <b>{money(policy.approvalThreshold)}</b>
+              <div>
+                <b>{money(policy.approvalThreshold)}</b>
+                <small style={secondaryStyle}>
+                  {nearEquivalent(policy.approvalThreshold, nearUsd)}
+                </small>
+              </div>
             </div>
             <div className="policy-item">
               <span>Approved recipients</span>
@@ -391,6 +461,11 @@ export default function App() {
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
               />
+              <small style={secondaryStyle}>
+                {Number(amount) > 0
+                  ? nearEquivalent(Number(amount), nearUsd)
+                  : 'Enter an amount to see NEAR equivalent'}
+              </small>
             </label>
 
             <label className="purpose-field">
