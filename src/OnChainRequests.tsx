@@ -1,8 +1,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, Activity, ExternalLink } from 'lucide-react'
+import { RefreshCw, Activity, ExternalLink, Check, X } from 'lucide-react'
+import { connector } from './NearStatus'
 
 const ACCOUNT_ID = 'agentvault-xzt520.testnet'
+const OWNER_ID = 'smasj01.testnet'
 const RPC_URL = 'https://rpc.testnet.near.org'
 
 type ChainRequest = {
@@ -60,11 +62,11 @@ async function readRequests(): Promise<ChainRequest[]> {
     throw new Error(payload.error.message || 'Could not read requests.')
   }
 
-  const decoded = new TextDecoder().decode(
-    new Uint8Array(payload.result.result)
-  )
-
-  return JSON.parse(decoded) as ChainRequest[]
+  return JSON.parse(
+    new TextDecoder().decode(
+      new Uint8Array(payload.result.result)
+    )
+  ) as ChainRequest[]
 }
 
 export default function OnChainRequests() {
@@ -72,6 +74,9 @@ export default function OnChainRequests() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [nearUsd, setNearUsd] = useState<number | null>(null)
+  const [owner, setOwner] = useState(false)
+  const [actionId, setActionId] = useState<number | null>(null)
+  const [message, setMessage] = useState('')
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -94,6 +99,29 @@ export default function OnChainRequests() {
   useEffect(() => {
     let active = true
 
+    async function checkOwner() {
+      try {
+        const wallet = await connector.wallet()
+        const accounts = await wallet.getAccounts()
+
+        if (active) {
+          setOwner(accounts?.[0]?.accountId === OWNER_ID)
+        }
+      } catch {
+        if (active) setOwner(false)
+      }
+    }
+
+    void checkOwner()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+
     const loadPrice = async () => {
       try {
         const response = await fetch(
@@ -109,7 +137,7 @@ export default function OnChainRequests() {
           setNearUsd(price)
         }
       } catch {
-        // Keep the previous valid rate if a refresh fails.
+        // Keep the previous valid rate.
       }
     }
 
@@ -122,6 +150,55 @@ export default function OnChainRequests() {
     }
   }, [])
 
+  async function handleDecision(
+    requestId: number,
+    decision: 'approve_request' | 'reject_request'
+  ) {
+    setActionId(requestId)
+    setMessage('')
+    setError('')
+
+    try {
+      const wallet = await connector.wallet()
+      const accounts = await wallet.getAccounts()
+      const account = accounts?.[0]?.accountId
+
+      if (account !== OWNER_ID) {
+        throw new Error('Connect the smasj01.testnet owner wallet first.')
+      }
+
+      setMessage('Please confirm the action in Intear Wallet...')
+
+      await wallet.signAndSendTransaction({
+        receiverId: ACCOUNT_ID,
+        actions: [{
+          type: 'FunctionCall',
+          params: {
+            methodName: decision,
+            args: { request_id: requestId },
+            gas: '100000000000000',
+            deposit: '0'
+          }
+        }]
+      })
+
+      setMessage(
+        decision === 'approve_request'
+          ? 'Approval transaction submitted. Refreshing request history...'
+          : 'Rejection transaction submitted. Refreshing request history...'
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 2500))
+      await refresh()
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Owner action failed.'
+      )
+    } finally {
+      setActionId(null)
+    }
+  }
+
   return (
     <section className="panel chain-requests-panel">
       <div className="panel-head">
@@ -131,6 +208,10 @@ export default function OnChainRequests() {
         </div>
         <span className="live-pill"><i /> BLOCKCHAIN</span>
       </div>
+
+      {message && (
+        <p className="chain-message">{message}</p>
+      )}
 
       {loading && (
         <p className="chain-message">Loading requests from NEAR testnet…</p>
@@ -159,7 +240,9 @@ export default function OnChainRequests() {
                 <b>{request.recipient}</b>
                 <span>Request #{request.id} · {request.requester}</span>
                 <small>
-                  {new Date(Number(BigInt(request.created_at_ns) / 1000000n)).toLocaleString()}
+                  {new Date(
+                    Number(BigInt(request.created_at_ns) / 1000000n)
+                  ).toLocaleString()}
                 </small>
               </div>
 
@@ -176,8 +259,42 @@ export default function OnChainRequests() {
                       ? 'approved'
                       : 'rejected'
                 )}>
-                  {request.status === 'PendingApproval' ? 'Pending' : request.status}
+                  {request.status === 'PendingApproval'
+                    ? 'Pending'
+                    : request.status}
                 </span>
+
+                {owner && request.status === 'PendingApproval' && (
+                  <div style={{
+                    display: 'flex',
+                    gap: 8,
+                    marginTop: 10,
+                    flexWrap: 'wrap'
+                  }}>
+                    <button
+                      className="primary"
+                      disabled={actionId !== null}
+                      onClick={() => void handleDecision(
+                        request.id,
+                        'approve_request'
+                      )}
+                    >
+                      <Check size={14} />
+                      {actionId === request.id ? 'Processing...' : 'Approve'}
+                    </button>
+
+                    <button
+                      disabled={actionId !== null}
+                      onClick={() => void handleDecision(
+                        request.id,
+                        'reject_request'
+                      )}
+                    >
+                      <X size={14} />
+                      Reject
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -185,7 +302,7 @@ export default function OnChainRequests() {
       )}
 
       <div className="chain-requests-footer">
-        <span>Read-only · NEAR testnet · USD is an estimate</span>
+        <span>NEAR testnet · USD is an estimate</span>
 
         <button onClick={() => void refresh()} disabled={loading}>
           <RefreshCw size={13} /> Refresh
