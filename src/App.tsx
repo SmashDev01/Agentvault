@@ -7,6 +7,7 @@ import {
 import { evaluatePayment, type Policy, type PaymentRequest } from './policy'
 import NearStatus from './NearStatus'
 import OnChainRequests from './OnChainRequests'
+import OnChainRequestForm from './OnChainRequestForm'
 
 const initialPolicy: Policy = {
   perTransactionLimit: 250,
@@ -260,6 +261,8 @@ export default function App() {
         <NearStatus />
 
         <OnChainRequests />
+
+        <OnChainRequestForm />
 
         {notice && (
           <div className="notice" onClick={() => setNotice('')}>
