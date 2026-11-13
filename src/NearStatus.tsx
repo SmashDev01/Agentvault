@@ -7,12 +7,16 @@ import {
   ShieldCheck,
   ExternalLink,
   Wallet,
-  LogOut
+  LogOut,
+  Lock
 } from 'lucide-react'
 
 const ACCOUNT_ID = 'agentvault-xzt520.testnet'
+const OWNER_ID = 'smasj01.testnet'
 const RPC_URL = 'https://rpc.testnet.near.org'
 const REOWN_PROJECT_ID = '9d0ddacb457a7cef532b476119d80f6f'
+
+const FIVE_NEAR = '5000000000000000000000000'
 
 const walletConnect = SignClient.init({
   projectId: REOWN_PROJECT_ID,
@@ -61,16 +65,12 @@ async function viewMethod<T>(methodName: string): Promise<T> {
     })
   })
 
-  if (!response.ok) {
-    throw new Error('NEAR RPC request failed.')
-  }
+  if (!response.ok) throw new Error('NEAR RPC request failed.')
 
   const payload = await response.json()
 
   if (payload.error) {
-    throw new Error(
-      payload.error.message || 'NEAR RPC returned an error.'
-    )
+    throw new Error(payload.error.message || 'NEAR RPC error.')
   }
 
   const decoded = new TextDecoder().decode(
@@ -110,6 +110,8 @@ export default function NearStatus() {
   const [walletError, setWalletError] = useState('')
   const [nearUsd, setNearUsd] = useState<number | null>(null)
   const [priceUpdatedAt, setPriceUpdatedAt] = useState('')
+  const [updatingPolicy, setUpdatingPolicy] = useState(false)
+  const [policyMessage, setPolicyMessage] = useState('')
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -150,7 +152,7 @@ export default function NearStatus() {
           return true
         }
       } catch {
-        // Wallet may still be restoring its mobile session.
+        // Wallet may still be restoring its session.
       }
 
       if (i < attempts - 1) {
@@ -161,14 +163,13 @@ export default function NearStatus() {
     if (finishLoading) {
       setWalletLoading(false)
       setWalletError(
-        'Wallet approval was not detected. Please try connecting again.'
+        'Wallet approval was not detected. Please reconnect.'
       )
     }
 
     return false
   }, [])
 
-  // Load live NEAR/USD market price.
   useEffect(() => {
     let active = true
 
@@ -178,9 +179,7 @@ export default function NearStatus() {
           'https://api.coingecko.com/api/v3/simple/price?ids=near&vs_currencies=usd'
         )
 
-        if (!response.ok) {
-          throw new Error('Price service unavailable')
-        }
+        if (!response.ok) throw new Error('Price unavailable')
 
         const data = await response.json()
         const price = Number(data?.near?.usd)
@@ -190,7 +189,7 @@ export default function NearStatus() {
           setPriceUpdatedAt(new Date().toLocaleTimeString())
         }
       } catch {
-        // Keep the previous valid price if refresh fails.
+        // Keep the previous valid price.
       }
     }
 
@@ -227,10 +226,7 @@ export default function NearStatus() {
     }
 
     const handleReturnToBrowser = () => {
-      if (
-        active &&
-        document.visibilityState === 'visible'
-      ) {
+      if (active && document.visibilityState === 'visible') {
         void syncWallet(5, true)
       }
     }
@@ -241,18 +237,12 @@ export default function NearStatus() {
     void syncWallet(2, false)
 
     window.addEventListener('focus', handleReturnToBrowser)
-    document.addEventListener(
-      'visibilitychange',
-      handleReturnToBrowser
-    )
+    document.addEventListener('visibilitychange', handleReturnToBrowser)
 
     return () => {
       active = false
       window.removeEventListener('focus', handleReturnToBrowser)
-      document.removeEventListener(
-        'visibilitychange',
-        handleReturnToBrowser
-      )
+      document.removeEventListener('visibilitychange', handleReturnToBrowser)
     }
   }, [syncWallet])
 
@@ -262,20 +252,15 @@ export default function NearStatus() {
 
     try {
       await connector.connect()
-
       const connected = await syncWallet(8, false)
 
       if (!connected) {
         setWalletLoading(false)
-        setWalletError(
-          'Connection was not confirmed. Please try again or select another NEAR wallet.'
-        )
+        setWalletError('Connection was not confirmed. Try again.')
       }
     } catch (err) {
       setWalletError(
-        err instanceof Error
-          ? err.message
-          : 'Wallet connection failed. Please try again.'
+        err instanceof Error ? err.message : 'Wallet connection failed.'
       )
       setWalletLoading(false)
     }
@@ -291,12 +276,86 @@ export default function NearStatus() {
       setWalletAccount('')
     } catch (err) {
       setWalletError(
-        err instanceof Error
-          ? err.message
-          : 'Could not disconnect wallet.'
+        err instanceof Error ? err.message : 'Could not disconnect wallet.'
       )
     } finally {
       setWalletLoading(false)
+    }
+  }
+
+  async function updateOnChainPolicy() {
+    if (walletAccount !== OWNER_ID) {
+      setPolicyMessage('')
+      setWalletError('Connect the contract owner wallet first.')
+      return
+    }
+
+    if (!policy) {
+      setPolicyMessage('')
+      setWalletError('Current policy is not loaded. Refresh first.')
+      return
+    }
+
+    setUpdatingPolicy(true)
+    setPolicyMessage('')
+    setWalletError('')
+
+    try {
+      // Re-read the live policy immediately before signing.
+      const current = await viewMethod<ChainPolicy>('get_policy')
+
+      const wallet = await connector.wallet()
+
+      await wallet.signAndSendTransaction({
+        receiverId: ACCOUNT_ID,
+        actions: [{
+          type: 'FunctionCall',
+          params: {
+            methodName: 'update_policy',
+            args: {
+              per_transaction_limit: FIVE_NEAR,
+              daily_budget: FIVE_NEAR,
+              approval_threshold: FIVE_NEAR,
+              expires_at_ns: current.expires_at_ns,
+              allowed_recipients: current.allowed_recipients
+            },
+            gas: '100000000000000',
+            deposit: '0'
+          }
+        }]
+      })
+
+      setPolicyMessage(
+        'Wallet signing completed. Checking the policy on-chain...'
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 2500))
+      await refresh()
+
+      const verified = await viewMethod<ChainPolicy>('get_policy')
+
+      if (
+        verified.per_transaction_limit === FIVE_NEAR &&
+        verified.daily_budget === FIVE_NEAR &&
+        verified.approval_threshold === FIVE_NEAR
+      ) {
+        setPolicy(verified)
+        setPolicyMessage(
+          'Success! The new 5 NEAR policy is confirmed on-chain.'
+        )
+      } else {
+        setPolicyMessage(
+          'The transaction was submitted, but the new policy is not yet confirmed. Refresh and check again.'
+        )
+      }
+    } catch (err) {
+      setWalletError(
+        err instanceof Error
+          ? err.message
+          : 'Policy update failed or was not approved.'
+      )
+    } finally {
+      setUpdatingPolicy(false)
     }
   }
 
@@ -306,18 +365,21 @@ export default function NearStatus() {
       ).toLocaleString()
     : ''
 
+  const policyIsUpdated = Boolean(
+    policy &&
+    policy.per_transaction_limit === FIVE_NEAR &&
+    policy.daily_budget === FIVE_NEAR &&
+    policy.approval_threshold === FIVE_NEAR
+  )
+
   return (
     <section className="panel chain-panel">
       <div className="panel-head">
         <div>
           <h2>NEAR testnet connection</h2>
-          <p>
-            Live policy read directly from your deployed contract.
-          </p>
+          <p>Live policy read directly from your deployed contract.</p>
         </div>
-        <span className="live-pill">
-          <i /> ON-CHAIN
-        </span>
+        <span className="live-pill"><i /> ON-CHAIN</span>
       </div>
 
       <div className="chain-account">
@@ -338,7 +400,7 @@ export default function NearStatus() {
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '12px',
+        gap: 12,
         margin: '16px 0'
       }}>
         <div style={{ minWidth: 0 }}>
@@ -349,17 +411,11 @@ export default function NearStatus() {
           }}>
             WALLET STATUS
           </small>
-
           <b style={{ overflowWrap: 'anywhere' }}>
             {walletAccount || 'No wallet connected'}
           </b>
-
           {!walletAccount && (
-            <small style={{
-              display: 'block',
-              opacity: 0.65,
-              marginTop: 5
-            }}>
+            <small style={{ display: 'block', opacity: 0.65, marginTop: 5 }}>
               NEAR wallets and supported WalletConnect wallets
             </small>
           )}
@@ -367,9 +423,7 @@ export default function NearStatus() {
 
         <button
           onClick={() => void (
-            walletAccount
-              ? disconnectWallet()
-              : connectWallet()
+            walletAccount ? disconnectWallet() : connectWallet()
           )}
           disabled={walletLoading}
           style={{
@@ -386,36 +440,23 @@ export default function NearStatus() {
             cursor: walletLoading ? 'wait' : 'pointer'
           }}
         >
-          {walletAccount
-            ? <LogOut size={15} />
-            : <Wallet size={15} />
-          }
-
+          {walletAccount ? <LogOut size={15} /> : <Wallet size={15} />}
           {walletLoading
             ? 'Checking wallet…'
-            : walletAccount
-              ? 'Disconnect'
-              : 'Choose NEAR Wallet'
-          }
+            : walletAccount ? 'Disconnect' : 'Choose NEAR Wallet'}
         </button>
       </div>
 
-      {walletError && (
-        <p className="chain-error">{walletError}</p>
-      )}
+      {walletError && <p className="chain-error">{walletError}</p>}
 
       {loading && (
-        <p className="chain-message">
-          Reading policy from NEAR testnet…
-        </p>
+        <p className="chain-message">Reading policy from NEAR testnet…</p>
       )}
 
       {!loading && error && (
         <div className="chain-error">
           <span>{error}</span>
-          <button onClick={() => void refresh()}>
-            Retry
-          </button>
+          <button onClick={() => void refresh()}>Retry</button>
         </div>
       )}
 
@@ -464,11 +505,7 @@ export default function NearStatus() {
                 : `$${nearUsd.toLocaleString('en-US')}`}
               {priceUpdatedAt && ` · Updated ${priceUpdatedAt}`}
             </span>
-
-            <button
-              onClick={() => void refresh()}
-              disabled={loading}
-            >
+            <button onClick={() => void refresh()} disabled={loading}>
               <RefreshCw size={13} /> Refresh
             </button>
           </div>
@@ -478,6 +515,68 @@ export default function NearStatus() {
             {policy.allowed_recipients.map(recipient => (
               <span key={recipient}>{recipient}</span>
             ))}
+          </div>
+
+          <div style={{
+            marginTop: 18,
+            padding: 14,
+            borderRadius: 12,
+            border: '1px solid rgba(140,120,255,.3)',
+            background: 'rgba(120,95,255,.07)'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 8
+            }}>
+              <Lock size={16} />
+              <b>Owner policy controls</b>
+            </div>
+
+            <p style={{ margin: '0 0 12px', opacity: 0.75, fontSize: 13 }}>
+              Set the transaction limit, daily budget and approval threshold
+              to 5 NEAR. Requests within the remaining daily budget will be
+              automatically approved.
+            </p>
+
+            {walletAccount !== OWNER_ID ? (
+              <p className="chain-error">
+                Connect {OWNER_ID} to authorize policy changes.
+              </p>
+            ) : (
+              <button
+                onClick={() => void updateOnChainPolicy()}
+                disabled={updatingPolicy || policyIsUpdated || loading}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '11px 15px',
+                  borderRadius: 10,
+                  border: 0,
+                  background: policyIsUpdated ? '#237b50' : '#7657e8',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: updatingPolicy ? 'wait' : 'pointer',
+                  opacity: updatingPolicy ? 0.7 : 1
+                }}
+              >
+                <ShieldCheck size={16} />
+                {updatingPolicy
+                  ? 'Waiting for wallet / verifying…'
+                  : policyIsUpdated
+                    ? 'Policy already updated'
+                    : 'Authorize 5 NEAR Policy'}
+              </button>
+            )}
+
+            {policyMessage && (
+              <p className="chain-message" style={{ marginTop: 10 }}>
+                {policyMessage}
+              </p>
+            )}
           </div>
 
           <p className="chain-disclaimer">
