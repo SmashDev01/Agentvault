@@ -10,11 +10,13 @@ const YOCTO = 10n ** 24n
 
 function toYocto(value: string): string {
   const parts = value.trim().split('.')
+
   if (!/^\d+$/.test(parts[0]) || parts.length > 2) {
     throw new Error('Enter a valid NEAR amount.')
   }
 
   const decimals = parts[1] || ''
+
   if (!/^\d*$/.test(decimals) || decimals.length > 24) {
     throw new Error('Maximum 24 decimal places allowed.')
   }
@@ -44,7 +46,10 @@ async function readContract(method: string) {
   })
 
   const data = await response.json()
-  if (data.error) throw new Error(data.error.message)
+
+  if (data.error) {
+    throw new Error(data.error.message)
+  }
 
   return JSON.parse(
     new TextDecoder().decode(new Uint8Array(data.result.result))
@@ -72,9 +77,6 @@ export default function OnChainRequestForm() {
       }
 
       const yoctoAmount = toYocto(amount)
-      console.log('Entered amount:', amount)
-      console.log('Converted amount:', yoctoAmount)
-      console.log('Transaction limit:', policy.per_transaction_limit)
 
       if (BigInt(yoctoAmount) <= 0n) {
         throw new Error('Amount must be greater than zero.')
@@ -83,11 +85,23 @@ export default function OnChainRequestForm() {
       const policy = await readContract('get_policy')
       const spent = await readContract('get_daily_spend')
 
-      if (BigInt(yoctoAmount) > BigInt(policy.per_transaction_limit)) {
-        throw new Error('Request exceeds the transaction limit.')
+      console.log('Entered amount:', amount)
+      console.log('Converted amount:', yoctoAmount)
+      console.log('Transaction limit:', policy.per_transaction_limit)
+      console.log('Daily budget:', policy.daily_budget)
+      console.log('Daily spent:', spent)
+
+      const transactionLimit = BigInt(policy.per_transaction_limit)
+      const dailyBudget = BigInt(policy.daily_budget)
+      const dailySpent = BigInt(spent)
+
+      if (BigInt(yoctoAmount) > transactionLimit) {
+        throw new Error(
+          `Request exceeds transaction limit. Amount: ${yoctoAmount}, limit: ${transactionLimit}`
+        )
       }
 
-      if (BigInt(yoctoAmount) > BigInt(policy.daily_budget) - BigInt(spent)) {
+      if (BigInt(yoctoAmount) > dailyBudget - dailySpent) {
         throw new Error('Not enough daily budget remaining.')
       }
 
