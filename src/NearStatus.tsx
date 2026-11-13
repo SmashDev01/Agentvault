@@ -16,8 +16,6 @@ const OWNER_ID = 'smasj01.testnet'
 const RPC_URL = 'https://rpc.testnet.near.org'
 const REOWN_PROJECT_ID = '9d0ddacb457a7cef532b476119d80f6f'
 
-const FIVE_NEAR = '5000000000000000000000000'
-
 const walletConnect = SignClient.init({
   projectId: REOWN_PROJECT_ID,
   metadata: {
@@ -45,6 +43,21 @@ type ChainPolicy = {
 
 type SignInEvent = {
   accounts: Array<{ accountId: string }>
+}
+
+function toYocto(near: string): string {
+  const value = near.trim()
+
+  if (!/^\d+(\.\d{1,24})?$/.test(value)) {
+    throw new Error('Enter a valid NEAR amount.')
+  }
+
+  const [whole, decimal = ''] = value.split('.')
+
+  return (
+    BigInt(whole) * 10n ** 24n +
+    BigInt((decimal + '0'.repeat(24)).slice(0, 24))
+  ).toString()
 }
 
 async function viewMethod<T>(methodName: string): Promise<T> {
@@ -112,6 +125,10 @@ export default function NearStatus() {
   const [priceUpdatedAt, setPriceUpdatedAt] = useState('')
   const [updatingPolicy, setUpdatingPolicy] = useState(false)
   const [policyMessage, setPolicyMessage] = useState('')
+
+  const [transactionLimitInput, setTransactionLimitInput] = useState('5')
+  const [dailyBudgetInput, setDailyBudgetInput] = useState('10')
+  const [approvalThresholdInput, setApprovalThresholdInput] = useState('2')
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -301,10 +318,30 @@ export default function NearStatus() {
     setWalletError('')
 
     try {
-      // Re-read the live policy immediately before signing.
-      const current = await viewMethod<ChainPolicy>('get_policy')
+      const transactionLimit = toYocto(transactionLimitInput)
+      const dailyBudget = toYocto(dailyBudgetInput)
+      const approvalThreshold = toYocto(approvalThresholdInput)
 
+      if (
+        BigInt(transactionLimit) <= 0n ||
+        BigInt(dailyBudget) <= 0n ||
+        BigInt(approvalThreshold) <= 0n
+      ) {
+        throw new Error('All policy values must be greater than zero.')
+      }
+
+      if (BigInt(transactionLimit) > BigInt(dailyBudget)) {
+        throw new Error('Transaction limit cannot exceed daily budget.')
+      }
+
+      if (BigInt(approvalThreshold) > BigInt(transactionLimit)) {
+        throw new Error('Approval threshold cannot exceed transaction limit.')
+      }
+
+      const current = await viewMethod<ChainPolicy>('get_policy')
       const wallet = await connector.wallet()
+
+      setPolicyMessage('Please confirm the policy update in your wallet...')
 
       await wallet.signAndSendTransaction({
         receiverId: ACCOUNT_ID,
@@ -313,9 +350,9 @@ export default function NearStatus() {
           params: {
             methodName: 'update_policy',
             args: {
-              per_transaction_limit: FIVE_NEAR,
-              daily_budget: FIVE_NEAR,
-              approval_threshold: FIVE_NEAR,
+              per_transaction_limit: transactionLimit,
+              daily_budget: dailyBudget,
+              approval_threshold: approvalThreshold,
               expires_at_ns: current.expires_at_ns,
               allowed_recipients: current.allowed_recipients
             },
@@ -325,9 +362,7 @@ export default function NearStatus() {
         }]
       })
 
-      setPolicyMessage(
-        'Wallet signing completed. Checking the policy on-chain...'
-      )
+      setPolicyMessage('Transaction submitted. Verifying on-chain policy...')
 
       await new Promise(resolve => setTimeout(resolve, 2500))
       await refresh()
@@ -335,14 +370,12 @@ export default function NearStatus() {
       const verified = await viewMethod<ChainPolicy>('get_policy')
 
       if (
-        verified.per_transaction_limit === FIVE_NEAR &&
-        verified.daily_budget === FIVE_NEAR &&
-        verified.approval_threshold === FIVE_NEAR
+        verified.per_transaction_limit === transactionLimit &&
+        verified.daily_budget === dailyBudget &&
+        verified.approval_threshold === approvalThreshold
       ) {
         setPolicy(verified)
-        setPolicyMessage(
-          'Success! The new 5 NEAR policy is confirmed on-chain.'
-        )
+        setPolicyMessage('Success! Your new policy is confirmed on-chain.')
       } else {
         setPolicyMessage(
           'The transaction was submitted, but the new policy is not yet confirmed. Refresh and check again.'
@@ -364,13 +397,6 @@ export default function NearStatus() {
         Number(BigInt(policy.expires_at_ns) / 1000000n)
       ).toLocaleString()
     : ''
-
-  const policyIsUpdated = Boolean(
-    policy &&
-    policy.per_transaction_limit === FIVE_NEAR &&
-    policy.daily_budget === FIVE_NEAR &&
-    policy.approval_threshold === FIVE_NEAR
-  )
 
   return (
     <section className="panel chain-panel">
@@ -535,9 +561,8 @@ export default function NearStatus() {
             </div>
 
             <p style={{ margin: '0 0 12px', opacity: 0.75, fontSize: 13 }}>
-              Set the transaction limit, daily budget and approval threshold
-              to 5 NEAR. Requests within the remaining daily budget will be
-              automatically approved.
+              Configure spending limits and human approval requirements.
+              Changes require authorization from the contract owner.
             </p>
 
             {walletAccount !== OWNER_ID ? (
@@ -545,31 +570,82 @@ export default function NearStatus() {
                 Connect {OWNER_ID} to authorize policy changes.
               </p>
             ) : (
-              <button
-                onClick={() => void updateOnChainPolicy()}
-                disabled={updatingPolicy || policyIsUpdated || loading}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  padding: '11px 15px',
-                  borderRadius: 10,
-                  border: 0,
-                  background: policyIsUpdated ? '#237b50' : '#7657e8',
-                  color: '#fff',
-                  fontWeight: 700,
-                  cursor: updatingPolicy ? 'wait' : 'pointer',
-                  opacity: updatingPolicy ? 0.7 : 1
-                }}
-              >
-                <ShieldCheck size={16} />
-                {updatingPolicy
-                  ? 'Waiting for wallet / verifying…'
-                  : policyIsUpdated
-                    ? 'Policy already updated'
-                    : 'Authorize 5 NEAR Policy'}
-              </button>
+              <>
+                <label style={{ display: 'block', marginBottom: 10 }}>
+                  Transaction limit (NEAR)
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={transactionLimitInput}
+                    onChange={e => setTransactionLimitInput(e.target.value)}
+                    disabled={updatingPolicy}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      marginTop: 5
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: 'block', marginBottom: 10 }}>
+                  Daily budget (NEAR)
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={dailyBudgetInput}
+                    onChange={e => setDailyBudgetInput(e.target.value)}
+                    disabled={updatingPolicy}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      marginTop: 5
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: 'block', marginBottom: 12 }}>
+                  Human approval threshold (NEAR)
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={approvalThresholdInput}
+                    onChange={e => setApprovalThresholdInput(e.target.value)}
+                    disabled={updatingPolicy}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      marginTop: 5
+                    }}
+                  />
+                </label>
+
+                <button
+                  onClick={() => void updateOnChainPolicy()}
+                  disabled={updatingPolicy || loading}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    padding: '11px 15px',
+                    borderRadius: 10,
+                    border: 0,
+                    background: '#7657e8',
+                    color: '#fff',
+                    fontWeight: 700,
+                    cursor: updatingPolicy ? 'wait' : 'pointer',
+                    opacity: updatingPolicy ? 0.7 : 1
+                  }}
+                >
+                  <ShieldCheck size={16} />
+                  {updatingPolicy
+                    ? 'Updating policy...'
+                    : 'Authorize New Policy'}
+                </button>
+              </>
             )}
 
             {policyMessage && (
