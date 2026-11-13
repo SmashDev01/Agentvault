@@ -307,4 +307,9 @@ impl AgentVault {
             U128(0)
         }
     }
+
+    // Read-only method to identify the contract owner.
+    pub fn get_owner(&self) -> AccountId {
+        self.owner_id.clone()
+    }
 }
