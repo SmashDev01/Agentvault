@@ -80,12 +80,24 @@ async function viewMethod<T>(methodName: string): Promise<T> {
   return JSON.parse(decoded) as T
 }
 
+function nearValue(yocto: string) {
+  return Number(BigInt(yocto)) / 1e24
+}
+
 function nearAmount(yocto: string) {
-  return (
-    Number(BigInt(yocto)) / 1e24
-  ).toLocaleString('en-US', {
+  return nearValue(yocto).toLocaleString('en-US', {
     maximumFractionDigits: 4
   }) + ' NEAR'
+}
+
+function usdAmount(yocto: string, price: number | null) {
+  if (price === null) return 'USD rate unavailable'
+
+  return (nearValue(yocto) * price).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2
+  })
 }
 
 export default function NearStatus() {
@@ -96,6 +108,8 @@ export default function NearStatus() {
   const [walletAccount, setWalletAccount] = useState('')
   const [walletLoading, setWalletLoading] = useState(false)
   const [walletError, setWalletError] = useState('')
+  const [nearUsd, setNearUsd] = useState<number | null>(null)
+  const [priceUpdatedAt, setPriceUpdatedAt] = useState('')
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -152,6 +166,41 @@ export default function NearStatus() {
     }
 
     return false
+  }, [])
+
+  // Load live NEAR/USD market price.
+  useEffect(() => {
+    let active = true
+
+    const loadPrice = async () => {
+      try {
+        const response = await fetch(
+          'https://api.coingecko.com/api/v3/simple/price?ids=near&vs_currencies=usd'
+        )
+
+        if (!response.ok) {
+          throw new Error('Price service unavailable')
+        }
+
+        const data = await response.json()
+        const price = Number(data?.near?.usd)
+
+        if (active && Number.isFinite(price) && price > 0) {
+          setNearUsd(price)
+          setPriceUpdatedAt(new Date().toLocaleTimeString())
+        }
+      } catch {
+        // Keep the previous valid price if refresh fails.
+      }
+    }
+
+    void loadPrice()
+    const timer = window.setInterval(loadPrice, 60000)
+
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
   }, [])
 
   useEffect(() => {
@@ -376,26 +425,46 @@ export default function NearStatus() {
             <div>
               <small>PER-TRANSACTION LIMIT</small>
               <b>{nearAmount(policy.per_transaction_limit)}</b>
+              <small className="currency-equivalent">
+                ≈ {usdAmount(policy.per_transaction_limit, nearUsd)} USD
+              </small>
             </div>
 
             <div>
               <small>DAILY BUDGET</small>
               <b>{nearAmount(policy.daily_budget)}</b>
+              <small className="currency-equivalent">
+                ≈ {usdAmount(policy.daily_budget, nearUsd)} USD
+              </small>
             </div>
 
             <div>
               <small>HUMAN APPROVAL ABOVE</small>
               <b>{nearAmount(policy.approval_threshold)}</b>
+              <small className="currency-equivalent">
+                ≈ {usdAmount(policy.approval_threshold, nearUsd)} USD
+              </small>
             </div>
 
             <div>
               <small>SPENT TODAY</small>
               <b>{nearAmount(dailySpend ?? '0')}</b>
+              <small className="currency-equivalent">
+                ≈ {usdAmount(dailySpend ?? '0', nearUsd)} USD
+              </small>
             </div>
           </div>
 
           <div className="chain-footer">
-            <span>Policy expires: {expiry}</span>
+            <span>
+              Policy expires: {expiry}
+              <br />
+              NEAR/USD: {nearUsd === null
+                ? 'Loading price…'
+                : `$${nearUsd.toLocaleString('en-US')}`}
+              {priceUpdatedAt && ` · Updated ${priceUpdatedAt}`}
+            </span>
+
             <button
               onClick={() => void refresh()}
               disabled={loading}
@@ -412,7 +481,9 @@ export default function NearStatus() {
           </div>
 
           <p className="chain-disclaimer">
-            Read-only policy display. Wallet connection does not transfer funds.
+            USD values are estimates using the live market rate.
+            NEAR remains the currency used for on-chain policy enforcement.
+            Wallet connection does not transfer funds.
           </p>
         </>
       )}
