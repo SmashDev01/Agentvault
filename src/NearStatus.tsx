@@ -28,7 +28,7 @@ const walletConnect = SignClient.init({
   }
 })
 
-const connector = new NearConnector({
+export const connector = new NearConnector({
   network: 'testnet',
   features: { testnet: true },
   footerBranding: null,
