@@ -81,13 +81,9 @@ impl AgentVault {
         allowed_recipients: Vec<AccountId>,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
-
         assert!(per_transaction_limit.0 > 0, "Invalid transaction limit");
         assert!(daily_budget.0 > 0, "Invalid daily budget");
-        assert!(
-            expires_at_ns.0 > env::block_timestamp(),
-            "Expiry must be in the future"
-        );
+        assert!(expires_at_ns.0 > env::block_timestamp(), "Expiry must be in the future");
 
         Self {
             owner_id,
@@ -115,7 +111,6 @@ impl AgentVault {
 
     fn refresh_daily_spend(&mut self) {
         let today = env::block_timestamp() / DAY_NS;
-
         if today != self.daily_spent_day {
             self.daily_spent = 0;
             self.daily_spent_day = today;
@@ -123,22 +118,10 @@ impl AgentVault {
     }
 
     fn check_policy(&self, recipient: &AccountId, amount: u128) {
-        assert!(
-            env::block_timestamp() < self.policy.expires_at_ns,
-            "Policy has expired"
-        );
-
+        assert!(env::block_timestamp() < self.policy.expires_at_ns, "Policy has expired");
         assert!(amount > 0, "Amount must be greater than zero");
-
-        assert!(
-            amount <= self.policy.per_transaction_limit,
-            "Transaction limit exceeded"
-        );
-
-        assert!(
-            self.policy.allowed_recipients.contains(recipient),
-            "Recipient is not allowed"
-        );
+        assert!(amount <= self.policy.per_transaction_limit, "Transaction limit exceeded");
+        assert!(self.policy.allowed_recipients.contains(recipient), "Recipient is not allowed");
     }
 
     pub fn update_policy(
@@ -150,18 +133,9 @@ impl AgentVault {
         allowed_recipients: Vec<AccountId>,
     ) {
         self.assert_owner();
-
-        assert!(
-            per_transaction_limit.0 > 0,
-            "Invalid transaction limit"
-        );
-
+        assert!(per_transaction_limit.0 > 0, "Invalid transaction limit");
         assert!(daily_budget.0 > 0, "Invalid daily budget");
-
-        assert!(
-            expires_at_ns.0 > env::block_timestamp(),
-            "Expiry must be in the future"
-        );
+        assert!(expires_at_ns.0 > env::block_timestamp(), "Expiry must be in the future");
 
         self.policy = Policy {
             per_transaction_limit: per_transaction_limit.0,
@@ -172,23 +146,13 @@ impl AgentVault {
         };
     }
 
-    pub fn submit_request(
-        &mut self,
-        recipient: AccountId,
-        amount: U128,
-    ) -> u64 {
+    pub fn submit_request(&mut self, recipient: AccountId, amount: U128) -> u64 {
         let amount = amount.0;
-
         self.refresh_daily_spend();
         self.check_policy(&recipient, amount);
 
-        let remaining = self.policy.daily_budget
-            .saturating_sub(self.daily_spent);
-
-        assert!(
-            amount <= remaining,
-            "Daily spending budget exceeded"
-        );
+        let remaining = self.policy.daily_budget.saturating_sub(self.daily_spent);
+        assert!(amount <= remaining, "Daily spending budget exceeded");
 
         let status = if amount > self.policy.approval_threshold {
             RequestStatus::PendingApproval
@@ -214,7 +178,6 @@ impl AgentVault {
         }
 
         self.requests.push(request);
-
         id
     }
 
@@ -228,17 +191,11 @@ impl AgentVault {
 
         let request = self.requests[index].clone();
 
-        assert_eq!(
-            request.status,
-            RequestStatus::PendingApproval,
-            "Request is not pending"
-        );
-
+        assert_eq!(request.status, RequestStatus::PendingApproval, "Request is not pending");
         self.check_policy(&request.recipient, request.amount);
 
         assert!(
-            request.amount <= self.policy.daily_budget
-                .saturating_sub(self.daily_spent),
+            request.amount <= self.policy.daily_budget.saturating_sub(self.daily_spent),
             "Daily spending budget exceeded"
         );
 
@@ -253,12 +210,7 @@ impl AgentVault {
             .find(|request| request.id == request_id)
             .expect("Request not found");
 
-        assert_eq!(
-            request.status,
-            RequestStatus::PendingApproval,
-            "Request is not pending"
-        );
-
+        assert_eq!(request.status, RequestStatus::PendingApproval, "Request is not pending");
         request.status = RequestStatus::Rejected;
     }
 
@@ -300,7 +252,6 @@ impl AgentVault {
 
     pub fn get_daily_spend(&self) -> U128 {
         let today = env::block_timestamp() / DAY_NS;
-
         if today == self.daily_spent_day {
             U128(self.daily_spent)
         } else {
@@ -308,8 +259,14 @@ impl AgentVault {
         }
     }
 
-    // Read-only method to identify the contract owner.
     pub fn get_owner(&self) -> AccountId {
         self.owner_id.clone()
+    }
+
+    // Only the current owner can transfer ownership.
+    pub fn transfer_ownership(&mut self, new_owner_id: AccountId) {
+        self.assert_owner();
+        assert_ne!(new_owner_id, self.owner_id, "New owner must be different");
+        self.owner_id = new_owner_id;
     }
 }
