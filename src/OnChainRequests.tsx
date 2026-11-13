@@ -14,10 +14,24 @@ type ChainRequest = {
   created_at_ns: string
 }
 
+function nearValue(value: string) {
+  return Number(BigInt(value)) / 1e24
+}
+
 function nearAmount(value: string) {
-  return (Number(BigInt(value)) / 1e24).toLocaleString('en-US', {
+  return nearValue(value).toLocaleString('en-US', {
     maximumFractionDigits: 4
   }) + ' NEAR'
+}
+
+function usdAmount(value: string, price: number | null) {
+  if (price === null) return 'USD rate unavailable'
+
+  return (nearValue(value) * price).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2
+  }) + ' USD'
 }
 
 async function readRequests(): Promise<ChainRequest[]> {
@@ -39,8 +53,12 @@ async function readRequests(): Promise<ChainRequest[]> {
   })
 
   if (!response.ok) throw new Error('NEAR RPC request failed.')
+
   const payload = await response.json()
-  if (payload.error) throw new Error(payload.error.message || 'Could not read requests.')
+
+  if (payload.error) {
+    throw new Error(payload.error.message || 'Could not read requests.')
+  }
 
   const decoded = new TextDecoder().decode(
     new Uint8Array(payload.result.result)
@@ -53,6 +71,7 @@ export default function OnChainRequests() {
   const [requests, setRequests] = useState<ChainRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [nearUsd, setNearUsd] = useState<number | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -71,6 +90,37 @@ export default function OnChainRequests() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    let active = true
+
+    const loadPrice = async () => {
+      try {
+        const response = await fetch(
+          'https://api.coingecko.com/api/v3/simple/price?ids=near&vs_currencies=usd'
+        )
+
+        if (!response.ok) throw new Error('Price service unavailable')
+
+        const data = await response.json()
+        const price = Number(data?.near?.usd)
+
+        if (active && Number.isFinite(price) && price > 0) {
+          setNearUsd(price)
+        }
+      } catch {
+        // Keep the previous valid rate if a refresh fails.
+      }
+    }
+
+    void loadPrice()
+    const timer = window.setInterval(loadPrice, 60000)
+
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [])
 
   return (
     <section className="panel chain-requests-panel">
@@ -112,8 +162,13 @@ export default function OnChainRequests() {
                   {new Date(Number(BigInt(request.created_at_ns) / 1000000n)).toLocaleString()}
                 </small>
               </div>
+
               <div className="chain-request-right">
                 <b>{nearAmount(request.amount)}</b>
+                <small className="currency-equivalent">
+                  ≈ {usdAmount(request.amount, nearUsd)} USD
+                </small>
+
                 <span className={'pill ' + (
                   request.status === 'PendingApproval'
                     ? 'pending'
@@ -130,10 +185,12 @@ export default function OnChainRequests() {
       )}
 
       <div className="chain-requests-footer">
-        <span>Read-only · NEAR testnet</span>
+        <span>Read-only · NEAR testnet · USD is an estimate</span>
+
         <button onClick={() => void refresh()} disabled={loading}>
           <RefreshCw size={13} /> Refresh
         </button>
+
         <a
           href="https://testnet.nearblocks.io/address/agentvault-xzt520.testnet"
           target="_blank"
